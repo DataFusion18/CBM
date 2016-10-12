@@ -1,4 +1,4 @@
-AUTHOR: Kashif Mahmud
+AUTHOR: Kashif Mahmud and Belinda Medlyn
 k.mahmud@westernsydney.edu.au
 01/10/2016
 

@@ -6,6 +6,7 @@
 # The algorithm only considers the instantaneous time frame (Not the previous/cumulative pool amount)
 
 rm(list=ls())
+setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Results")
 
 # install.packages("mvtnorm")
 library(mvtnorm)
@@ -13,17 +14,19 @@ chainLength = 1000 # Setting the length of the Markov Chain to be generated
 
 # Generate synthetic data for Cstorage,Cleaf,Cstem,Croot with Mean and SD
 time = 1:30 # Time in days
+# Function to gerenate normally distributed random numbers with mean and SD
 rnorm2 <- function(n,mean,sd) { mean+sd*scale(rnorm(n)) }
 GPP = rnorm2(length(time),15,3) # Generate GPP data with mean=15, sd=3
 Rd = rnorm2(length(time),4,0.8) # Generate Rd data with mean=4, sd=0.8
+# Generate Cstorage.true to create a measurement sets of Cleaf, Cstem, Croot 
 Cstorage.true = rnorm2(length(time),7.5,2) # Generate Cstorage data with mean=7.5, sd=2
 Y = 0.3
 
-# Generate random parameter sets for synthetic Cleaf,Cstem,Croot data
-k.true = rnorm2(length(time),0.55,0.15) # Generate true 'k' values with mean=0.6, sd=0.1 (0.5 <~ k <~ 0.7)
-af.true = rnorm2(length(time),1/7,0.05) # Generate true 'af' values with mean=1/3, sd=0.15 (0.15 <~ k <~ 0.45)
-as.true = rnorm2(length(time),3/7,0.15) # Generate true 'af' values with mean=1/3, sd=0.15 (0.15 <~ k <~ 0.45)
-sf.true = rnorm2(length(time),1/30,1/100) # Generate true 'af' values with mean=1/10, sd=1/10 (0 <~ k <~ 0.2)
+# Generate random parameter sets for synthetic Cleaf,Cstem,Croot data generation
+k.true = rnorm2(length(time),0.55,0.15) # Generate true 'k' values with mean=0.55, sd=0.15 
+af.true = rnorm2(length(time),1/7,0.05) # Generate true 'af' values with mean=1/7, sd=0.05 
+as.true = rnorm2(length(time),3/7,0.15) # Generate true 'as' values with mean=3/7, sd=0.15
+sf.true = rnorm2(length(time),1/30,1/100) # Generate true 'sf' values with mean=1/30, sd=1/100
 
 Cleaf.true <- matrix(, nrow=length(time), ncol=1)
 Cstem.true <- matrix(, nrow=length(time), ncol=1)
@@ -39,7 +42,7 @@ sd.Cleaf = sd(Cleaf.true)
 sd.Cstem = sd(Cstem.true)
 sd.Croot = sd(Croot.true)
 
-# Setting lower and upper bounds of the prior parameter pdf, and start point of the chain
+# Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
 no.param = length(time)
 no.var = 4 # variables are k,af,as,sf
 param.k <- matrix(c(0.1,0.55,1) , nrow=no.param, ncol=3, byrow=T) 
@@ -68,7 +71,7 @@ for (i in 1:no.var)
 {prior.dist[i] = list(log(dunif(pValues[ , i], pMinima[ , i], pMaxima[ , i])))}
 logPrior0 <- sum(unlist(prior.dist))
 
-# Defining the model
+# Defining the model to iteratively calculate Cstorage, Cleaf, Cstem, Croot
 model <- function (GPP,Rd,Cleaf.true,Cstem.true,Croot.true,Y,k,af,as,sf) {
   Cstorage <- matrix(, nrow=length(GPP), ncol=1)
   Cleaf <- matrix(, nrow=length(GPP), ncol=1)
@@ -146,6 +149,7 @@ pChain[c,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,logL0)
 # pChain[c,no.param*no.var+1] <- logL0
 }
 
+# Store the final parameter set values
 param.set = colMeans(pChain[ , 1:(no.param*no.var)])
 param.final = data.frame(matrix(ncol = no.var, nrow = no.param))
 names(param.final) <- c("k", "af", "as", "sf")
@@ -153,8 +157,11 @@ param.final$k = param.set[1:no.param]
 param.final$af = param.set[(1+no.param):(2*no.param)]
 param.final$as = param.set[(1+2*no.param):(3*no.param)]
 param.final$sf = param.set[(1+3*no.param):(4*no.param)]
+# Calculate final output set from the predicted parameter set
 output.final = model(GPP,Rd,Cleaf.true,Cstem.true,Croot.true,Y,
                      param.final$k,param.final$af,param.final$as,param.final$sf)
+
+# Get the cumulative sums over the length of time
 output.csum <- cumsum(output.final)
 Cstorage.csum = cumsum(Cstorage.true)
 Cleaf.csum = cumsum(Cleaf.true)
@@ -171,7 +178,7 @@ print(acceptance)
 # pCovMatrix <- cov(pChain)
 # print(pCovMatrix)
 
-# Find the correlation coefficient between riginal measurements and predictions
+# Find the correlation coefficient between original measurements and predictions
 corrMatrix.1 = cor(Cstorage.csum,output.csum$Cstorage)
 t1 = (paste("Correlation Coefficient, r2 of original Cstorage measurements and predictions: ", corrMatrix.1*corrMatrix.1))
 corrMatrix.2 = cor(Cleaf.csum,output.csum$Cleaf)
@@ -185,18 +192,19 @@ print(t2)
 print(t3)
 print(t4)
 
+# Plot few accepted parameter values over time to find whether the chain converged
 par(mfrow=c(1,1))                    
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Parameter_1.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Parameter_1.png")
 plot(pChain[,no.param/2], main="Parameter 1 at time=10", xlab="Chain length", ylab="Parameter 1")
-dev.off()
+# dev.off()
 
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Parameter_2.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Parameter_2.png")
 plot(pChain[,(no.param+no.param/2)], main="Parameter 2 at time=10", xlab="Chain length", ylab="Parameter 1")
-dev.off()
+# dev.off()
 
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Parameter_end.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Parameter_end.png")
 plot(pChain[,no.param*no.var-no.param/2], main="Last Parameter at time=10", xlab="Chain length", ylab="Last Parameter")
-dev.off()
+# dev.off()
 
 # plot(pChain[,1],pChain[,2])  
 # title('Parameter 1 vs Parameter 2')
@@ -204,37 +212,38 @@ dev.off()
 # lines(Cstorage.csum,Cstorage.csum)
 # title('Original Cstorage measurements vs predictions')
 
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Cstorage.png")
+# Plot original measurements vs predictions for Cstorage, Cleaf, Cstem, Croot
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Cstorage.png")
 plot(time,Cstorage.csum, main="Original Cstorage measurements vs predictions", 
      xlab="Time", ylab="Cstorage", pch=20, col="red") 
 lines(time,output.csum$Cstorage,lwd = 2,col="green")
 legend('topleft', c("Measurements", "Predictions") , 
        lty=1, col=c('red','green'), bty='n', cex=0.75)
-dev.off()
+# dev.off()
 
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Cleaf.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Cleaf.png")
 plot(time,Cleaf.csum, main="Original Cleaf measurements vs predictions", 
      xlab="Time", ylab="Cleaf", pch=20, col="red") 
 lines(time,output.csum$Cleaf,lwd = 2,col="green")
 legend('topleft', c("Measurements", "Predictions") , 
        lty=1, col=c('red','green'), bty='n', cex=0.75)
-dev.off()
+# dev.off()
 
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Cstem.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Cstem.png")
 plot(time,Cstem.csum, main="Original Cstem measurements vs predictions", 
      xlab="Time", ylab="Cstem", pch=20, col="red") 
 lines(time,output.csum$Cstem,lwd = 2,col="green")
 legend('topleft', c("Measurements", "Predictions") , 
        lty=1, col=c('red','green'), bty='n', cex=0.75)
-dev.off()
+# dev.off()
 
-png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Croot.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/MCMC_CBM_v4_outcomes/Croot.png")
 plot(time,Croot.csum, main="Original Croot measurements vs predictions", 
      xlab="Time", ylab="Croot", pch=20, col="red") 
 lines(time,output.csum$Croot,lwd = 2,col="green")
 legend('topleft', c("Measurements", "Predictions") , 
        lty=1, col=c('red','green'), bty='n', cex=0.75)
-dev.off()
+# dev.off()
 
 # plot(Cleaf.true, output.final$Cleaf, main="Scatterplot Example", 
 #      xlab="True Cleaf", ylab="Estimated Cleaf", pch=19)

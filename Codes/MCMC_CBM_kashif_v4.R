@@ -9,7 +9,7 @@ rm(list=ls())
 setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Results")
 
 # install.packages("mvtnorm")
-library(mvtnorm)
+library(mvtnorm) # Creates candidate parameter vector as a multivariate normal jump away from the current candidate
 chainLength = 1000 # Setting the length of the Markov Chain to be generated
 
 # Generate synthetic data for Cstorage,Cleaf,Cstem,Croot with Mean and SD

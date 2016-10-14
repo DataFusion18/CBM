@@ -1,4 +1,7 @@
-# Carbon Balance Model 
+# Carbon balance model 
+# Developed by Kashif Mahmud and Belinda Medlyn (October 2016)
+# k.mahmud@westernsydney.edu.au
+
 # R code to import and process data, and then model the carbon pools and fluxes
 rm(list=ls())
 setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
@@ -347,9 +350,10 @@ legend('topleft', c("Measurements", "Modelled data"), lty=1, col=c('red','green'
 ##read data
 # install.packages("rio")
 library("rio")
-finalmass = import("https://raw.githubusercontent.com/CourtneyCampany/EucPVE/master/calculated%20data/harvest_mass_means.csv")
-# write.csv(finalmass, "harvest_mass_means.csv", row.names=FALSE)
-# finalmass <- read.csv("/Users/kashifmahmud/WSU/ARC_project/Data_files/Carbon_balance_model_data/harvest_mass_means.csv")
+finalmass = read.csv("harvest_mass_means.csv")
+# ##### Downloading files directly from Github in PC folder
+# download.file("https://raw.githubusercontent.com/CourtneyCampany/EucPVE/master/calculated%20data/eucpve_met.csv", 
+#               destfile = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/test1.csv", method = "curl")
 
 # la_pred <- import("https://raw.githubusercontent.com/CourtneyCampany/EucPVE/master/calculated%20data/LApred_volume.csv")
 # la_Kashif = read.csv("/Users/kashifmahmud/WSU/ARC_project/Data_files/Court_data/LA_Kashif.csv", header=F, sep=",")
@@ -530,7 +534,7 @@ ggplot(dailyC, aes(x = Date, y = R.plant, group = volume, colour=factor(volume))
 
 
 
-################### Find leaf storage (tnc, fortnightly data) for corresponding Dates (from Court's leaf_data file: represents Gas measurement campaign)
+################### Find plant storage (tnc, fortnightly data) for corresponding Dates (from Court's leaf_data file: represents Gas measurement campaign)
 keeps <- c("Date", "volume", "starch_mgperg", "sugars_mgperg")
 tnc.gas = leaf.data[ , keeps, drop = FALSE]
 names(tnc.gas)[1:2] <- c("Date", "volume")

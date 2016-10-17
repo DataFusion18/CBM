@@ -40,16 +40,21 @@ lc.final$Date = as.Date(lc.final$Date, format = "%m/%d/%Y")
 # keeps <- "Date"
 # lc.final = lc.final[ , keeps, drop = FALSE]
 dimnames(lc.final)[[1]] <- 1:nrow(lc.final)
+lc.SD.final = lc.final
 
-################### Count total leaf numbers for various soil manipulation tests (Weekly data)
+################### Count total leaf numbers for various soil manipulation tests (Weekly data) with SD
 for(i in 1:length(vols)) { #-- Create objects  'lc.idn.1', 'lc.idn.2', ... 'lc.idn.7' --
   lc.idn = subset(lc,volume==vols[i]) 
   lc.idn[nrow(lc.idn)+1, ] = colMeans(lc.idn, na.rm = TRUE) # R8 = Average of leaf counts
+  lc.idn[nrow(lc.idn)+1, ] = apply(lc.idn[1:ncol(lc.idn)], 2, sd, na.rm = TRUE) # R9 = Standard deviation of leaf counts
+  dimnames(lc.idn)[[1]] <- c(1:(nrow(lc.idn)-2), "Mean", "SD")
   lc.idn[] <- round(lc.idn)
-  nam <- paste("volume_", vols[i], sep = "")
-  lc.final[i+1] <- as.data.frame(t(lc.idn[nrow(lc.idn), 4:ncol(lc.idn)]))
-  # lc.final[2,1:ncol(lc.final)] = lc.idn[nrow(lc.idn), 4:ncol(lc.idn)]
-  names(lc.final)[i+1] <- nam
+  nam1 <- paste("volume_", vols[i], sep = "")
+  nam2 <- paste("SD_volume_", vols[i], sep = "")
+  lc.final[,i+1] <- as.data.frame(t(lc.idn[nrow(lc.idn)-1, 4:ncol(lc.idn)]))
+  lc.SD.final[,i+1] = as.data.frame(t(lc.idn[nrow(lc.idn), 4:ncol(lc.idn)]))
+  names(lc.final)[(i+1)] <- nam1
+  names(lc.SD.final)[(i+1)] <- nam2
 }
 
 ################### Interpolate leaf counts for daily data from weekly measurements
@@ -211,7 +216,7 @@ with(subset(leaf.data.gas,volume==35),points(Date,sla_corrected,col="red"))
 lm.daily = data.frame(lc.daily$Date)
 for(i in 1:length(vols)) {
   lm.daily[ , i+1] = lc.daily[ , i+1] * hd.final$leaf_mass[i] / hd.final$leaf_count[i]
-  lm.daily[ , i+1] = lm.daily[ , i+1] * 0.5 # Convert gm of DM to gm of C (multiplying by 0.5)
+  # lm.daily[ , i+1] = lm.daily[ , i+1] * 0.5 # Unit connversion = gm of DM from gm of C (multiplying by 0.5)
 }
 names(lm.daily)[1:ncol(lm.daily)] <- c("Date", "volume_5", "volume_10", "volume_15", "volume_20", "volume_25", "volume_35", "volume_1000")
 
@@ -225,6 +230,36 @@ ggplot() +
   xlab("Days") +
   ggtitle("Leaf mass from harvest data")
 # dev.off()
+
+# Save the weekly Cleaf data for MCMC CBM
+lm.weekly = subset(lm.daily,Date %in% lc.final$Date)
+lm.weekly.melt <- melt(lm.weekly, id.vars = "Date")
+names(lm.weekly.melt)[2:3] <- c("volume", "leafmass")
+lm.weekly.melt$volume = as.numeric(lm.weekly.melt$volume)
+for(i in length(vols):1) {
+  ind = which(lm.weekly.melt$volume %in% i)
+  lm.weekly.melt$volume[ind] = vols[i]
+}
+# lm.SD.weekly = subset(lm.SD.daily,Date %in% lc.SD.final$Date)
+lc.weekly.melt <- melt(lc.final, id.vars = "Date")
+names(lc.weekly.melt)[2:3] <- c("volume", "leafcount")
+lc.weekly.melt$volume = as.numeric(lc.weekly.melt$volume)
+for(i in length(vols):1) {
+  ind = which(lc.weekly.melt$volume %in% i)
+  lc.weekly.melt$volume[ind] = vols[i]
+}
+lc.SD.weekly.melt <- melt(lc.SD.final, id.vars = "Date")
+names(lc.SD.weekly.melt)[2:3] <- c("volume", "leafcount_SD")
+lc.SD.weekly.melt$volume = as.numeric(lc.SD.weekly.melt$volume)
+for(i in length(vols):1) {
+  ind = which(lc.SD.weekly.melt$volume %in% i)
+  lc.SD.weekly.melt$volume[ind] = vols[i]
+}
+# leaf.data.gas = merge(sla.final,lc.daily.m,by=c("Date","volume"))
+lm.weekly.melt = merge(lm.weekly.melt,lc.weekly.melt,by=c("Date","volume"))
+lm.weekly.melt = merge(lm.weekly.melt,lc.SD.weekly.melt,by=c("Date","volume"))
+lm.weekly.melt$leafmass_SD = lm.weekly.melt$leafmass * lm.weekly.melt$leafcount_SD / lm.weekly.melt$leafcount
+write.csv(lm.weekly.melt[,c("Date","volume","leafmass","leafmass_SD")], file = "Cleaf_weekly_data.csv", row.names = FALSE)
 
 
 ################### Analyse stem height diameter to estimate Stem carbon pool
@@ -277,7 +312,7 @@ for(i in 1:length(vols)) {
     end.data.final <- end.data.idn[0,]
   }
   end.data.final[i, ] <- end.data.idn["Mean", ]
-  end.data.final$courseroot_SD[i] <- end.data.idn["SD", 2]
+  end.data.final$coarseroot_SD[i] <- end.data.idn["SD", 2]
   end.data.final$fineroot_SD[i] <- end.data.idn["SD", 3]
   end.data.final$leafmass_SD[i] <- end.data.idn["SD", 4]
   end.data.final$stemmass_SD[i] <- end.data.idn["SD", 5]
@@ -303,8 +338,30 @@ eq = function(x,y){exp(coefficients(fit)[1] + coefficients(fit)[2] * log(x)  + c
 x = height.dia.final$diameter
 y = height.dia.final$height
 z = height.dia.final$stemmass = eq(x,y)
-# height.dia.final$stemmass = exp(coefficients(fit)[1] + coefficients(fit)[2] * log(height.dia.final$diameter) 
-# + coefficients(fit)[3] * log(height.dia.final$height))
+
+# Calculate SD for weekly stemmass data
+height.dia.final$stemmass_SD = ((coefficients(fit)[2] * (height.dia.final$dia_SD/height.dia.final$diameter)  + 
+                                     coefficients(fit)[3] * (height.dia.final$height_SD/height.dia.final$height)) * 
+                                  height.dia.final$stemmass) / (coefficients(fit)[2] + coefficients(fit)[3])
+
+# Save the weekly Cstem data for MCMC CBM
+write.csv(height.dia.final[ , c("Date","volume","stemmass","stemmass_SD")], file = "Cstem_weekly_data.csv", row.names = FALSE)
+
+# Calculate SD for initial and harvest rootmass data
+Croot = data.frame(Date = as.Date(c("2013-01-21","2013-05-21")), rootmass = numeric(2), rootmass_SD = numeric(2))
+Croot = merge(vols,Croot)
+names(Croot)[1] = "volume"
+Croot = Croot[with(Croot, order(Date)), ]
+end.data.final$rootmass = end.data.final$coarseroot + end.data.final$fineroot
+end.data.final$rootmass_SD = end.data.final$coarseroot_SD + end.data.final$fineroot_SD
+
+Croot$rootmass[Croot$Date=="2013-01-21"] = initial.data$root_mass[11]
+Croot$rootmass_SD[Croot$Date=="2013-01-21"] = initial.data$root_mass[12]
+Croot$rootmass[Croot$Date=="2013-05-21"] = end.data.final$rootmass
+Croot$rootmass_SD[Croot$Date=="2013-05-21"] = end.data.final$rootmass_SD
+# Save the initial and harvest rootmass data for MCMC CBM
+write.csv(Croot, file = "Croot_twice_data.csv", row.names = FALSE)
+
 
 # Plotting observation and modelled data
 # png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Height_Stem mass.png")
@@ -405,18 +462,20 @@ dailyCgross <- modelledC_func(la.daily.m, sigma, Cday_gross)
 names(dailyCgross)[8] <- "tdc_gross"
 names(dailyCgross)[4] <- "cday_gross"
 
-dailyC <- merge(dailyCgross[, c(1:2, 4, 8)], dailyCnet[,c(1:2,4,8)], by=c("Date", "volume")) # Unit = micromol CO2 m-2 d-1
+dailyC <- merge(dailyCgross[,c(1:2,4,8)], dailyCnet[,c(1:2,4,8)], by=c("Date", "volume")) # Unit = micromol CO2 m-2 d-1
 # Unit conversion to gDM m-2 d-1: (12/44) is for micromol CO2 to gC; 0.5 is for gC to gDM
-dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] * (12/44) / 0.5 # Unit = gDM m-2 d-1
+dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] * (12/44) # Unit = gC d-1
+# dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] / 0.5 # Unit = gDM d-1
+write.csv(dailyC[ , c("Date","volume","tdc_gross")], "GPP.csv", row.names = FALSE)
 
 ggplot(data = dailyC, aes(x = Date, y = tdc_net, group = volume, colour=factor(volume))) + 
   geom_point(size=1) +
   xlab("Date") +
   ylab("Net total daily C (gDM m-2 d-1)") +
   ggtitle("Net total daily C")
-# with(dailyC, plot(Date,tdc_net, col=volume, xlab="date", ylab="Net total daily C (gDM m-2 d-1)"))
+# with(dailyC, plot(Date,tdc_net, col=volume, xlab="date", ylab="Net total daily C (gDM d-1)"))
 
-dailyC$R.plant <- with(dailyC, tdc_gross-tdc_net) # Unit = gDM m-2 d-1
+dailyC$R.plant <- with(dailyC, tdc_gross-tdc_net) # Unit = gDM d-1
 
 #Calculate total seedling C gain over experiment (120d) and compare to final harvest mass C
 library("doBy")
@@ -461,18 +520,19 @@ names(A_model)[4] <- "volume"
 A_model <- merge(A_model, rdarkq10[,1:2], by="volume")
 q25_drake <- 1.86
 
-# refit RD (gC m-2 leaf s-1)
-A_model$Rd_pred <- with(A_model, rd12.3 * q25_drake^((temp-12.3)/10)) # unit (micromol CO2 m-2 leaf d-1)
+# refit RD (gC m-2 leaf d-1)
 A_model <- merge(A_model, hd.final[,c(1,8)], by="volume")
-A_model$Rd_daily <- with(A_model, Rd_pred * sla_harvest) # unit conversion to (micromol CO2 g-1 leaf d-1)
+A_model$Rd_daily <- with(A_model, rd12.3 * q25_drake^((temp-12.3)/10) * sla_harvest) # unit (micromol CO2 g-1 plant d-1)
+# A_model <- merge(A_model, hd.final[,c(1,8)], by="volume")
+# A_model$Rd_daily <- with(A_model, Rd_pred * sla_harvest) # unit conversion to (micromol CO2 g-1 leaf d-1)
 with(A_model, plot(temp,Rd_daily, col=volume))
 
 library("doBy")
 Rd <- summaryBy(Rd_daily ~ Date+volume, data=A_model, FUN=sum, keep.names=TRUE ) # Sum of all same day Rd
 Rd$Rd_daily = Rd$Rd_daily / (24*4) # Average of all 96 data from a day
 Rd$Rd_daily = Rd$Rd_daily * (12/44)  # unit conversion from micromol CO2 to gC
-# Rd$Rd_daily = Rd$Rd_daily / 0.5 # Unit = gDM m-2 d-1
-# write.csv(Rd, "Rd_pred.csv", row.names=FALSE)
+# Rd$Rd_daily = Rd$Rd_daily / 0.5 # Unit = gDM g-1 plant d-1
+write.csv(Rd, "Rd.csv", row.names=FALSE)
 
 
 ############## Interpolate daily Cleaf, Cstem, Croot

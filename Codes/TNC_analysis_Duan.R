@@ -26,6 +26,10 @@ root.tnc = subset(carbohydrates,Organ == "Root") # Unit = % of dry weight rootma
 
 tnc = data.frame(harvest$LeafDW,leaf.tnc$tnc,harvest$StemDW,stem.tnc$tnc,harvest$RootDW,root.tnc$tnc)
 names(tnc) <- c("leafDW","leaf.tnc","stemDW","stem.tnc","rootDW","root.tnc") 
+cat("Leaf TNC : Leaf DW = ", tnc$leaf.tnc[7]/100)
+cat("Stem TNC : Stem DW = ", tnc$stem.tnc[7]/100)
+cat("Root TNC : Root DW = ", tnc$root.tnc[7]/100)
+
 tnc$total.leaf.tnc = tnc$leaf.tnc * tnc$leafDW / 100 # Unit = gC
 tnc$total.stem.tnc = tnc$stem.tnc * tnc$stemDW / 100 # Unit = gC
 tnc$total.root.tnc = tnc$root.tnc * tnc$rootDW / 100 # Unit = gC

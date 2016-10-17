@@ -6,36 +6,49 @@
 # daily time scale (e.g. 120 days) to estimate Carbon pools (Cstorage,Cleaf,Cstem,Croot)
 
 ##############################
-# Version = v6: Removing some data points randomly to test the code with gap data
+# Version = v7: First trial with soil manipulation pot experiment data
 ##############################
 rm(list=ls())
-setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Results")
+setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
 
 # install.packages("mvtnorm")
 library(mvtnorm) # Creates candidate parameter vector as a multivariate normal jump away from the current candidate
 chainLength = 1000 # Setting the length of the Markov Chain to be generated
+vol = 5
 
-# Generate synthetic data for Cstorage,Cleaf,Cstem,Croot with Mean and SD
-time = 1:120 # Time in days
+# Import daily GPP, daily Rd
+GPP.data = read.csv("GPP.csv") # Units gC d-1
+GPP.data = subset(GPP.data,volume==vol) # Consider only free seedling to start with
+names(GPP.data)[3] = "GPP"
+Rd.data = read.csv("Rd.csv") # Units g C g-1 plant d-1
+Rd.data = subset(Rd.data,volume==vol)
+Y = 0.3 # Carbon allocation fraction to growth respiration (Fromm literature: Y ~ 0.3)
+time = 1:nrow(GPP.data) # Time in days
 
-# Function to gerenate normally distributed random numbers with mean and SD
-rnorm2 <- function(n,mean,sd) { mean+sd*scale(rnorm(n)) }
-GPP.data = rnorm2(length(time),1,0.4) # Generate GPP data with mean=15, sd=3  # Units g C d-1
-GPP.data = GPP.data[order(GPP.data)]
-Rd.data = rnorm2(length(time),0.04,0.008) # Generate Rd data with mean=0.04, sd=0.008  # Units g C g-1 C d-1
-Y = 0.3  # Allocation fraction to growth respiration (Fromm literature: Y ~ 0.3)
+# Import weekly Cleaf, weekly Cstem, initial/harvest Croot data with Mean and SD
+Cleaf.data = read.csv("Cleaf_weekly_data.csv") # Units gC d-1
+Cleaf.data = subset(Cleaf.data,volume==vol)
+Cstem.data = read.csv("Cstem_weekly_data.csv") # Units gC d-1
+Cstem.data = subset(Cstem.data,volume==vol)
+Croot.data = read.csv("Croot_twice_data.csv") # Units gC d-1
+Croot.data = subset(Croot.data,volume==vol)
 
-# Generate random parameter sets for synthetic Cleaf,Cstem,Croot data generation
-k.data = rnorm2(length(time),0.5,0.05) # Generate data 'k' values with mean=0.5, sd=0.05 
-af.data = rnorm2(length(time),1/3,0.1) # Generate data 'af' values with mean=1/3, sd=0.1 
-as.data = rnorm2(length(time),1/3,0.1) # Generate data 'as' values with mean=1/3, sd=0.1
-sf.data = rnorm2(length(time),1/50,1/500) # Generate data 'sf' values with mean=1/50, sd=1/500
+# Merge all GPP, Rd, Cleaf, Cstem, Croot data
+data = merge(GPP.data,Rd.data, all = TRUE)
+data = merge(data,Cleaf.data, all = TRUE)
+data = merge(data,Cstem.data, all = TRUE)
+data = merge(data,Croot.data, all = TRUE)
+names(data)[4:ncol(data)] = c("Rd","Cleaf","Cleaf_SD","Cstem","Cstem_SD","Croot","Croot_SD")
 
-Cstorage.data <- Cleaf.data <- Croot.data <- Cstem.data <- c()
-Cstorage.data[1] <- 0.5 # Units g C d-1
-Cleaf.data[1] <- 2 # Units g C d-1
-Cstem.data[1] <- 1.5 # Units g C d-1
-Croot.data[1] <- 1 # Units g C d-1
+# From Duan's experiment for TNC partitioning to tree organs
+# Leaf TNC/Leaf DW =  0.1401421; Stem TNC/Stem DW =  0.0453869; Root TNC/Root DW =  0.02154037
+Cstorage = c()
+Cstorage[1] <- data$Cleaf[1] * 0.1401421 + data$Cstem[1] * 0.0453869 + data$Croot[1] * 0.02154037 
+
+# Plotting the data sets
+matplot(data[ , c("Cleaf","Cstem","Croot")],type = c("b"),pch=1,col = 1:3,xlab="Days",ylab="gC",main="Different Carbon pool measurements") #plot
+legend("topleft", legend = c("Cleaf.data","Cstem.data","Croot.data"), col=1:3, pch=0.75) # optional legend
+
 
 # Defining the model to iteratively calculate Cstorage, Cleaf, Cstem, Croot
 model <- function (GPP,Rd,Cstorage,Cleaf,Cstem,Croot,Y,k,af,as,sf) {
@@ -48,29 +61,11 @@ model <- function (GPP,Rd,Cstorage,Cleaf,Cstem,Croot,Y,k,af,as,sf) {
   output = data.frame(Cstorage,Cleaf,Cstem,Croot)
   return(output)}
 
-# Generating the synthetic data sets
-output.data = model(GPP.data,Rd.data,Cstorage.data,Cleaf.data,Cstem.data,Croot.data,Y,k.data,af.data,as.data,sf.data)
-names(output.data) = c("Cstorage.data","Cleaf.data","Cstem.data","Croot.data")
-
-# Removing some data points randomly
-library(purrr)
-output.gap.data = map_df(output.data, function(x) {x[sample(c(TRUE, NA), prob = c(0.2, 0.8), size = length(x), replace = TRUE)]})
-output.gap.data[1,] = output.data[1,]
-output.data = output.gap.data
-
-# Plotting the synthetic data sets
-matplot(output.data[ , 2:ncol(output.data)],type = c("b"),pch=1,col = 1:3,xlab="Days",ylab="gC",main="Different Carbon pool measurements") #plot
-legend("topleft", legend = c("Cleaf.data","Cstem.data","Croot.data"), col=1:3, pch=0.75) # optional legend
-
-# Initialize SD of data sets
-sd.Cleaf = 1
-sd.Cstem = 1
-sd.Croot = 1
 
 # Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
 no.param = length(time)
 no.var = 4 # variables are k,af,as,sf
-param.k <- matrix(c(0.1,0.5,1) , nrow=no.param, ncol=3, byrow=T) 
+param.k <- matrix(c(0.4,0.7,1) , nrow=no.param, ncol=3, byrow=T) 
 param.af <- matrix(c(0.1,1/3,0.6) , nrow=no.param, ncol=3, byrow=T) 
 param.as <- matrix(c(0.1,1/3,0.6) , nrow=no.param, ncol=3, byrow=T) 
 param.sf <- matrix(c(0,1/50,1/25) , nrow=no.param, ncol=3, byrow=T) 
@@ -94,23 +89,22 @@ logPrior0 <- sum(unlist(prior.dist))
 
 
 # Calculating model outputs for the starting point of the chain
-Cstorage <- Cleaf <- Croot <- Cstem <- c()
-Cstorage[1] <- 0.5
-Cleaf[1] <- 2
-Cstem[1] <- 1.5
-Croot[1] <- 1
-output = model(GPP.data,Rd.data,Cstorage,Cleaf,Cstem,Croot,Y,pValues$k,pValues$af,pValues$as,pValues$sf)
+Cleaf <- Croot <- Cstem <- c()
+Cleaf[1] <- data$Cleaf[1]
+Cstem[1] <- data$Cstem[1]
+Croot[1] <- data$Croot[1]
+output = model(data$GPP,data$Rd,Cstorage,Cleaf,Cstem,Croot,Y,pValues$k,pValues$af,pValues$as,pValues$sf)
 
 
 # Calculating the log likelihood of starting point of the chain
 logli <- matrix(0, nrow=length(time), ncol = 1) # Initialising the logli
 for (i in 1:length(time)) {
-  if (!is.na(output.data$Cleaf.data[i]))
-  {logli[i] = - 0.5*((output$Cleaf[i] - output.data$Cleaf.data[i])/sd.Cleaf)^2 - log(sd.Cleaf)}
-  if (!is.na(output.data$Cstem.data[i]))
-  {logli[i] = logli[i] - 0.5*((output$Cstem[i] - output.data$Cstem.data[i])/sd.Cstem)^2 - log(sd.Cstem)}
-  if (!is.na(output.data$Croot.data[i]))
-  {logli[i] = logli[i] - 0.5*((output$Croot[i] - output.data$Croot.data[i])/sd.Croot)^2 - log(sd.Croot)}
+  if (!is.na(data$Cleaf[i]))
+  {logli[i] = - 0.5*((output$Cleaf[i] - data$Cleaf[i])/data$Cleaf_SD[i])^2 - log(data$Cleaf_SD[i])}
+  if (!is.na(data$Cstem[i]))
+  {logli[i] = logli[i] - 0.5*((output$Cstem[i] - data$Cstem[i])/data$Cstem_SD[i])^2 - log(data$Cstem_SD[i])}
+  if (!is.na(data$Croot[i]))
+  {logli[i] = logli[i] - 0.5*((output$Croot[i] - data$Croot[i])/data$Croot_SD[i])^2 - log(data$Croot_SD[i])}
 }
 logL0 <- sum(logli) # Log likelihood
 pChain[1,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,logL0) # Assign the first parameter set with log likelihood
@@ -144,22 +138,21 @@ if (all(candidatepValues>pMinima) && all(candidatepValues<pMaxima)){
 
 # Calculating the outputs for the candidate parameter vector, log likelihood
 if (Prior1 > 0){
-  Cstorage <- Cleaf <- Croot <- Cstem <- c()
-  Cstorage[1] <- 0.5
-  Cleaf[1] <- 2
-  Cstem[1] <- 1.5
-  Croot[1] <- 1
-  out.cand = model(GPP.data,Rd.data,Cstorage,Cleaf,Cstem,Croot,Y,
+  Cleaf <- Croot <- Cstem <- c()
+  Cleaf[1] <- data$Cleaf[1]
+  Cstem[1] <- data$Cstem[1]
+  Croot[1] <- data$Croot[1]
+  out.cand = model(data$GPP,data$Rd,Cstorage,Cleaf,Cstem,Croot,Y,
                    candidatepValues$k,candidatepValues$af,candidatepValues$as,candidatepValues$sf)
   
   logli <- matrix(0, nrow=length(time), ncol = 1) # Initialising the logli
   for (i in 1:length(time)) {
-    if (!is.na(output.data$Cleaf.data[i]))
-    {logli[i] = - 0.5*((out.cand$Cleaf[i] - output.data$Cleaf.data[i])/sd.Cleaf)^2 - log(sd.Cleaf)}
-    if (!is.na(output.data$Cstem.data[i]))
-    {logli[i] = logli[i] - 0.5*((out.cand$Cstem[i] - output.data$Cstem.data[i])/sd.Cstem)^2 - log(sd.Cstem)}
-    if (!is.na(output.data$Croot.data[i]))
-    {logli[i] = logli[i] - 0.5*((out.cand$Croot[i] - output.data$Croot.data[i])/sd.Croot)^2 - log(sd.Croot)}
+    if (!is.na(data$Cleaf[i]))
+    {logli[i] = - 0.5*((out.cand$Cleaf[i] - data$Cleaf[i])/data$Cleaf_SD[i])^2 - log(data$Cleaf_SD[i])}
+    if (!is.na(data$Cstem[i]))
+    {logli[i] = logli[i] - 0.5*((out.cand$Cstem[i] - data$Cstem[i])/data$Cstem_SD[i])^2 - log(data$Cstem_SD[i])}
+    if (!is.na(data$Croot[i]))
+    {logli[i] = logli[i] - 0.5*((out.cand$Croot[i] - data$Croot[i])/data$Croot_SD[i])^2 - log(data$Croot_SD[i])}
   }
   logL1 <- sum(logli)
   # Calculating the logarithm of the Metropolis ratio
@@ -183,7 +176,7 @@ param.final$af = param.set[(1+no.param):(2*no.param)]
 param.final$as = param.set[(1+2*no.param):(3*no.param)]
 param.final$sf = param.set[(1+3*no.param):(4*no.param)]
 # Calculate final output set from the predicted parameter set
-output.final = model(GPP.data,Rd.data,Cstorage,Cleaf,Cstem,Croot,Y,
+output.final = model(data$GPP,data$Rd,Cstorage,Cleaf,Cstem,Croot,Y,
                      param.final$k,param.final$af,param.final$as,param.final$sf)
 
 
@@ -191,10 +184,10 @@ output.final = model(GPP.data,Rd.data,Cstorage,Cleaf,Cstem,Croot,Y,
 output.final$time = time
 # output.data$GPP.Cum.data = cumsum(GPP.data)
 # output.data$Resp.Cum.data = cumsum(Rd.data * (output.data$Cleaf.data + output.data$Cstem.data + output.data$Croot.data))
-output.data$time = time
+data$time = time
 names(output.final) = c("Cstorage.modelled","Cleaf.modelled","Cstem.modelled","Croot.modelled","time")
 melted.output = melt(output.final, id.vars="time")
-melted.data = melt(output.data[ , c(2:ncol(output.data))], id.vars="time")
+melted.data = melt(data[ , c("Cleaf","Cstem","Croot","time")], id.vars="time")
 
 # png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Measured_vs_modelled_Cpools.png")
 ggplot(melted.data, aes(x = time, y = value, group = variable, colour=factor(variable))) + 
@@ -225,11 +218,11 @@ print(acceptance)
 
 
 # Find the correlation coefficients (r2) between original measurements and predictions 
-corrMatrix.1 = cor(output.final$Cleaf[!is.na(output.data$Cleaf.data)],output.data$Cleaf.data[!is.na(output.data$Cleaf.data)])
+corrMatrix.1 = cor(output.final$Cleaf[!is.na(data$Cleaf)],data$Cleaf[!is.na(data$Cleaf)])
 t1 = (paste("Correlation Coefficient, r2 of original Cleaf measurements and predictions: ", corrMatrix.1*corrMatrix.1))
-corrMatrix.2 = cor(output.final$Cstem[!is.na(output.data$Cstem.data)],output.data$Cstem.data[!is.na(output.data$Cstem.data)])
+corrMatrix.2 = cor(output.final$Cstem[!is.na(data$Cstem)],data$Cstem[!is.na(data$Cstem)])
 t2 = (paste("Correlation Coefficient, r2 of original Cstem measurements and predictions: ", corrMatrix.2*corrMatrix.2))
-corrMatrix.3 = cor(output.final$Croot[!is.na(output.data$Croot.data)],output.data$Croot.data[!is.na(output.data$Croot.data)])
+corrMatrix.3 = cor(output.final$Croot[!is.na(data$Croot)],data$Croot[!is.na(data$Croot)])
 t3 = (paste("Correlation Coefficient, r2 of original Croot measurements and predictions: ", corrMatrix.3*corrMatrix.3))
 print(t1)
 print(t2)

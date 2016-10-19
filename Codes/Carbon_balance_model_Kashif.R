@@ -464,7 +464,8 @@ names(dailyCgross)[4] <- "cday_gross"
 
 dailyC <- merge(dailyCgross[,c(1:2,4,8)], dailyCnet[,c(1:2,4,8)], by=c("Date", "volume")) # Unit = micromol CO2 m-2 d-1
 # Unit conversion to gDM m-2 d-1: (12/44) is for micromol CO2 to gC; 0.5 is for gC to gDM
-dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] * (12/44) # Unit = gC d-1
+# dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] * (12/44) # Unit = gC d-1
+# dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] * (24*3600) # Unit = gC d-1
 # dailyC[ , c(3:6)] <- dailyC[ , c(3:6)] / 0.5 # Unit = gDM d-1
 write.csv(dailyC[ , c("Date","volume","tdc_gross")], "GPP.csv", row.names = FALSE)
 
@@ -480,7 +481,6 @@ dailyC$R.plant <- with(dailyC, tdc_gross-tdc_net) # Unit = gDM d-1
 #Calculate total seedling C gain over experiment (120d) and compare to final harvest mass C
 library("doBy")
 plantCnet <- doBy::summaryBy(tdc_net+R.plant+tdc_gross ~ volume, FUN=sum, data=dailyC)
-par(mfrow=c(1,1))
 
 # Plot both the results for comparison
 plantCnet$volume = as.numeric(as.character(plantCnet$volume))
@@ -622,6 +622,7 @@ lm.daily.m$Date = as.Date(lm.daily.m$Date)
 lm.daily.gas = lm.daily.m[lm.daily.m$Date %in% as.Date(c(unique(tnc.final$Date))), ]
 tnc.final$tnc = tnc.final$tnc * lm.daily.gas$leafmass / 1000 # Unit = g plant-1
 tnc.final$tnc_SD = tnc.final$tnc_SD * lm.daily.gas$leafmass / 1000 # Unit = g plant-1
+write.csv(tnc.final, file = "tnc_fortnightly_data.csv", row.names = FALSE)
 
 # Plot tnc data
 ggplot(data = dailyC, aes(x = Date, y = tdc_net, group = volume, colour=factor(volume))) + 

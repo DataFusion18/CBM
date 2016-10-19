@@ -14,16 +14,17 @@ setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
 # install.packages("mvtnorm")
 library(mvtnorm) # Creates candidate parameter vector as a multivariate normal jump away from the current candidate
 chainLength = 1000 # Setting the length of the Markov Chain to be generated
-vol = 5
+vol = 1000
 
 # Import daily GPP, daily Rd
 GPP.data = read.csv("GPP.csv") # Units gC d-1
 GPP.data = subset(GPP.data,volume==vol) # Consider only free seedling to start with
 names(GPP.data)[3] = "GPP"
+# GPP.data$GPP = GPP.data$GPP*4
 Rd.data = read.csv("Rd.csv") # Units g C g-1 plant d-1
 Rd.data = subset(Rd.data,volume==vol)
 Y = 0.3 # Carbon allocation fraction to growth respiration (Fromm literature: Y ~ 0.3)
-time = 1:nrow(GPP.data) # Time in days
+# time = 1:length(GPP.data$Date) # Time in days
 
 # Import weekly Cleaf, weekly Cstem, initial/harvest Croot data with Mean and SD
 Cleaf.data = read.csv("Cleaf_weekly_data.csv") # Units gC d-1
@@ -54,21 +55,29 @@ legend("topleft", legend = c("Cleaf.data","Cstem.data","Croot.data"), col=1:3, p
 model <- function (GPP,Rd,Cstorage,Cleaf,Cstem,Croot,Y,k,af,as,sf) {
   for (i in 2:length(GPP)){
     Cstorage[i] <- Cstorage[i-1] + GPP[i-1] - Rd[i-1]*(Cleaf[i-1] + Croot[i-1] + Cstem[i-1]) - k[i-1]*Cstorage[i-1]
-    Cleaf[i] <- Cleaf[i-1] + k[i-1]*Cstorage[i-1]*af[i-1]*(1-Y) - sf[i-1]*Cleaf[i-1]
-    Cstem[i] <- Cstem[i-1] + k[i-1]*Cstorage[i-1]*as[i-1]*(1-Y) 
-    Croot[i] <- Croot[i-1] + k[i-1]*Cstorage[i-1]*(1-af[i-1]-as[i-1])*(1-Y) 
+    Cstorage[i] <- Sleaf[i] + Sstem[i] + Sroot[i]
+    Sleaf[i]/75 <- Sstem[i]/16 <- Sroot[i]/9
+    
+    Cleaf[i] + Sleaf[i] <- Cleaf[i-1] + Sleaf[i-1] + k[i-1]*Cstorage[i-1]*af[i-1]*(1-Y) - sf[i-1]*Cleaf[i-1]
+    Cstem[i] + Sstem[i] <- Cstem[i-1] + Sstem[i-1] + k[i-1]*Cstorage[i-1]*as[i-1]*(1-Y)
+    Croot[i] + Sroot[i] <- Croot[i-1] + Sroot[i-1] + k[i-1]*Cstorage[i-1]*(1-af[i-1]-as[i-1])*(1-Y)
+    
+    # Cstorage[i] <- Cstorage[i-1] + GPP[i-1] - Rd[i-1]*(Cleaf[i-1] + Croot[i-1] + Cstem[i-1]) - k[i-1]*Cstorage[i-1]
+    # Cleaf[i] <- Cleaf[i-1] + k[i-1]*Cstorage[i-1]*af[i-1]*(1-Y) - sf[i-1]*Cleaf[i-1]
+    # Cstem[i] <- Cstem[i-1] + k[i-1]*Cstorage[i-1]*as[i-1]*(1-Y)
+    # Croot[i] <- Croot[i-1] + k[i-1]*Cstorage[i-1]*(1-af[i-1]-as[i-1])*(1-Y)
   }
   output = data.frame(Cstorage,Cleaf,Cstem,Croot)
   return(output)}
 
 
 # Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
-no.param = length(time)
+no.param = length(GPP.data$Date)
 no.var = 4 # variables are k,af,as,sf
-param.k <- matrix(c(0.4,0.7,1) , nrow=no.param, ncol=3, byrow=T) 
-param.af <- matrix(c(0.1,1/3,0.6) , nrow=no.param, ncol=3, byrow=T) 
-param.as <- matrix(c(0.1,1/3,0.6) , nrow=no.param, ncol=3, byrow=T) 
-param.sf <- matrix(c(0,1/50,1/25) , nrow=no.param, ncol=3, byrow=T) 
+param.k <- matrix(c(0.3,0.7,1) , nrow=no.param, ncol=3, byrow=T) 
+param.af <- matrix(c(0.1,0.55,0.8) , nrow=no.param, ncol=3, byrow=T) 
+param.as <- matrix(c(0.1,0.2,0.4) , nrow=no.param, ncol=3, byrow=T) 
+param.sf <- matrix(c(0,1/100,1/50) , nrow=no.param, ncol=3, byrow=T) 
 param = data.frame(param.k,param.af,param.as,param.sf)
 names(param) <- c("k_min", "k", "k_max", "af_min", "af", "af_max","as_min", "as", "as_max", "sf_min", "sf", "sf_max")
 pMinima <- param[ ,c("k_min", "af_min", "as_min", "sf_min")]
@@ -78,7 +87,7 @@ pChain <- matrix(0, nrow=chainLength, ncol = no.param*no.var+1) # Initialising t
 
 
 # Defining the variance-covariance matrix for proposal generation
-vcovProposal = diag( (0.1*(pMaxima-pMinima)) ^2 ) 
+vcovProposal = diag( (0.03*(pMaxima-pMinima)) ^2 ) 
 
 
 # Find the Prior probability density
@@ -97,8 +106,8 @@ output = model(data$GPP,data$Rd,Cstorage,Cleaf,Cstem,Croot,Y,pValues$k,pValues$a
 
 
 # Calculating the log likelihood of starting point of the chain
-logli <- matrix(0, nrow=length(time), ncol = 1) # Initialising the logli
-for (i in 1:length(time)) {
+logli <- matrix(0, nrow=length(GPP.data$Date), ncol = 1) # Initialising the logli
+for (i in 1:length(GPP.data$Date)) {
   if (!is.na(data$Cleaf[i]))
   {logli[i] = - 0.5*((output$Cleaf[i] - data$Cleaf[i])/data$Cleaf_SD[i])^2 - log(data$Cleaf_SD[i])}
   if (!is.na(data$Cstem[i]))
@@ -145,8 +154,8 @@ if (Prior1 > 0){
   out.cand = model(data$GPP,data$Rd,Cstorage,Cleaf,Cstem,Croot,Y,
                    candidatepValues$k,candidatepValues$af,candidatepValues$as,candidatepValues$sf)
   
-  logli <- matrix(0, nrow=length(time), ncol = 1) # Initialising the logli
-  for (i in 1:length(time)) {
+  logli <- matrix(0, nrow=length(GPP.data$Date), ncol = 1) # Initialising the logli
+  for (i in 1:length(GPP.data$Date)) {
     if (!is.na(data$Cleaf[i]))
     {logli[i] = - 0.5*((out.cand$Cleaf[i] - data$Cleaf[i])/data$Cleaf_SD[i])^2 - log(data$Cleaf_SD[i])}
     if (!is.na(data$Cstem[i]))
@@ -158,6 +167,7 @@ if (Prior1 > 0){
   # Calculating the logarithm of the Metropolis ratio
   logalpha <- (log(Prior1)+logL1) - (logPrior0+logL0) 
   # Accepting or rejecting the candidate vector
+  # browser()
   if ( log(runif(1, min = 0, max =1)) < logalpha ){ 
     pValues <- candidatepValues
     logPrior0 <- log(Prior1)
@@ -181,30 +191,30 @@ output.final = model(data$GPP,data$Rd,Cstorage,Cleaf,Cstem,Croot,Y,
 
 
 # Plotting the Measured(data) vs Modelled Plant Carbon pools for comparison
-output.final$time = time
+output.final$Date = data$Date
 # output.data$GPP.Cum.data = cumsum(GPP.data)
 # output.data$Resp.Cum.data = cumsum(Rd.data * (output.data$Cleaf.data + output.data$Cstem.data + output.data$Croot.data))
-data$time = time
-names(output.final) = c("Cstorage.modelled","Cleaf.modelled","Cstem.modelled","Croot.modelled","time")
-melted.output = melt(output.final, id.vars="time")
-melted.data = melt(data[ , c("Cleaf","Cstem","Croot","time")], id.vars="time")
+# data$time = time
+names(output.final) = c("Cstorage.modelled","Cleaf.modelled","Cstem.modelled","Croot.modelled","Date")
+melted.output = melt(output.final, id.vars="Date")
+melted.data = melt(data[ , c("Cleaf","Cstem","Croot","Date")], id.vars="Date")
 
 # png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Measured_vs_modelled_Cpools.png")
-ggplot(melted.data, aes(x = time, y = value, group = variable, colour=factor(variable))) + 
+ggplot(melted.data, aes(x = Date, y = value, group = variable, colour=factor(variable))) + 
   geom_point(pch=15) +
-  geom_line(data = melted.output, aes(x = time, y = value, group = variable, colour=factor(variable))) + 
+  geom_line(data = melted.output, aes(x = Date, y = value, group = variable, colour=factor(variable))) + 
   xlab("Days") +
   ylab("Plant Carbon pool (gC)") +
   ggtitle("Measured (points) vs Modelled (lines) Plant Carbon pools")
 # dev.off()
 
 # Plotting the parameter sets over time
-param.final$time = time
+param.final$Date = data$Date
 param.final$ar = 1 - param.final$af - param.final$as
-melted.param = melt(param.final, id.vars="time")
+melted.param = melt(param.final, id.vars="Date")
 # png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Allocation_fractions_over_time.png")
 ggplot() + 
-  geom_line(data = melted.param, aes(x = time, y = value, group = variable, colour=factor(variable))) + 
+  geom_line(data = melted.param, aes(x = Date, y = value, group = variable, colour=factor(variable))) + 
   xlab("Days") +
   ylab("Parameters") +
   ggtitle("Modelled allocation fractions")
@@ -216,7 +226,7 @@ acceptance = (paste(nAccepted, "out of ", chainLength, "candidates accepted ( = 
                     round(100*nAccepted/chainLength), "%)"))
 print(acceptance)
 
-
+  
 # Find the correlation coefficients (r2) between original measurements and predictions 
 corrMatrix.1 = cor(output.final$Cleaf[!is.na(data$Cleaf)],data$Cleaf[!is.na(data$Cleaf)])
 t1 = (paste("Correlation Coefficient, r2 of original Cleaf measurements and predictions: ", corrMatrix.1*corrMatrix.1))
@@ -227,5 +237,39 @@ t3 = (paste("Correlation Coefficient, r2 of original Croot measurements and pred
 print(t1)
 print(t2)
 print(t3)
+
+
+# Find the standard error (SE) between original measurements and predictions 
+se <- function(data,meas) { se = SE = 0
+for (i in 1:length(meas)) {
+  N = sum(!is.na(data))
+  if (!is.na(data[i]))
+  {se[i] = (data[i] - meas[i])^2 / N }
+}
+SE = sum(se,na.rm=TRUE) 
+return(SE)}
+
+se1 = se(data$Cleaf,output.final$Cleaf)
+t1 = (paste("Standard error (SE) of Cleaf measurements: ", se1))
+se2 = se(data$Cstem,output.final$Cstem)
+t2 = (paste("Standard error (SE) of Cstem measurements: ", se2))
+se3 = se(data$Croot,output.final$Croot)
+t3 = (paste("Standard error (SE) of Croot measurements: ", se3))
+print(t1)
+print(t2)
+print(t3)
+
+
+# Validating total C coming in (GPP) vs total C going out (sum of all Cpools, respiration and !!!storage pool!!!)
+C.in = gpp.sum = sum(data$GPP)
+
+resp.sum = sum(data$Rd) * (mean(data$Cleaf,na.rm = TRUE) + mean(data$Cstem,na.rm = TRUE) + mean(data$Croot,na.rm = TRUE))
+Cstorage.sum = sum(output.final$Cstorage.modelled)
+Cpool.sum = data$Cleaf[nrow(data)] + data$Cstem[nrow(data)] + data$Croot[nrow(data)]
+Clit = sum(param.final$sf) * (mean(data$Cleaf,na.rm = TRUE))
+C.out = resp.sum + Cpool.sum + Clit
+# C.out = resp.sum + Cpool.sum + Clit + Cstorage.sum
+cat('C.in = ',C.in)
+cat('C.out = ',C.out)
 
 

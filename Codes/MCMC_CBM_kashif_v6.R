@@ -16,7 +16,7 @@ library(mvtnorm) # Creates candidate parameter vector as a multivariate normal j
 chainLength = 1000 # Setting the length of the Markov Chain to be generated
 
 # Generate synthetic data for Cstorage,Cleaf,Cstem,Croot with Mean and SD
-time = 1:120 # Time in days
+time = 1:10 # Time in days
 
 # Function to gerenate normally distributed random numbers with mean and SD
 rnorm2 <- function(n,mean,sd) { mean+sd*scale(rnorm(n)) }
@@ -234,5 +234,27 @@ t3 = (paste("Correlation Coefficient, r2 of original Croot measurements and pred
 print(t1)
 print(t2)
 print(t3)
+
+
+# Find the standard error (SE) between original measurements and predictions 
+se <- function(data,meas) { se = SE = 0
+  for (i in 1:length(meas)) {
+    N = sum(!is.na(data))
+    if (!is.na(data[i]))
+    {se[i] = (data[i] - meas[i])^2 / N }
+  }
+  SE = sum(se,na.rm=TRUE) 
+  return(SE)}
+se1 = se(output.data$Cleaf.data,output.final$Cleaf)
+t1 = (paste("Standard error (SE) of Cleaf measurements: ", se1))
+se2 = se(output.data$Cstem.data,output.final$Cstem)
+t2 = (paste("Standard error (SE) of Cstem measurements: ", se2))
+se3 = se(output.data$Croot.data,output.final$Croot)
+t3 = (paste("Standard error (SE) of Croot measurements: ", se3))
+print(t1)
+print(t2)
+print(t3)
+
+
 
 

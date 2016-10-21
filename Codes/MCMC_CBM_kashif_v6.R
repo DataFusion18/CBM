@@ -16,7 +16,7 @@ library(mvtnorm) # Creates candidate parameter vector as a multivariate normal j
 chainLength = 1000 # Setting the length of the Markov Chain to be generated
 
 # Generate synthetic data for Cstorage,Cleaf,Cstem,Croot with Mean and SD
-time = 1:10 # Time in days
+time = 1:30 # Time in days
 
 # Function to gerenate normally distributed random numbers with mean and SD
 rnorm2 <- function(n,mean,sd) { mean+sd*scale(rnorm(n)) }
@@ -63,9 +63,9 @@ matplot(output.data[ , 2:ncol(output.data)],type = c("b"),pch=1,col = 1:3,xlab="
 legend("topleft", legend = c("Cleaf.data","Cstem.data","Croot.data"), col=1:3, pch=0.75) # optional legend
 
 # Initialize SD of data sets
-sd.Cleaf = 1
-sd.Cstem = 1
-sd.Croot = 1
+sd.Cleaf = 0.1
+sd.Cstem = 0.1
+sd.Croot = 0.1
 
 # Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
 no.param = length(time)
@@ -83,7 +83,7 @@ pChain <- matrix(0, nrow=chainLength, ncol = no.param*no.var+1) # Initialising t
 
 
 # Defining the variance-covariance matrix for proposal generation
-vcovProposal = diag( (0.1*(pMaxima-pMinima)) ^2 ) 
+vcovProposal = diag( (0.5*(pMaxima-pMinima)) ^2 ) 
 
 
 # Find the Prior probability density

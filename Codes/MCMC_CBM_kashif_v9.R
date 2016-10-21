@@ -68,7 +68,7 @@ legend("topleft", legend = c("Mleaf.data","Mstem.data","Mroot.data"), col=1:3, p
 # Clit = sum(param.final$sf) * (mean(data$Mleaf,na.rm = TRUE))
 # Y = 1 - (resp.sum + (Cpool.sum + Clit)) / C.in
 
-Y = 0.35 # Fixed value of Y
+Y = 0.357 # Fixed value of Y
 
 # Defining the model to iteratively calculate Cstorage, Cleaf, Cstem, Croot, Sleaf, Sstem, Sroot
 model <- function (GPP,Rd,Mleaf,Mstem,Mroot,Y,k,af,as,sf) {
@@ -112,7 +112,7 @@ model <- function (GPP,Rd,Mleaf,Mstem,Mroot,Y,k,af,as,sf) {
 # Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
 no.param = length(GPP.data$Date)
 no.var = 4 # variables are k,af,as,sf,Y
-param.k <- matrix(c(0.1,0.5,1) , nrow=no.param, ncol=3, byrow=T) 
+param.k <- matrix(c(0.1,0.4,0.8) , nrow=no.param, ncol=3, byrow=T) 
 param.af <- matrix(c(0.1,0.45,0.7) , nrow=no.param, ncol=3, byrow=T) 
 param.as <- matrix(c(0.1,0.25,0.5) , nrow=no.param, ncol=3, byrow=T) 
 param.sf <- matrix(c(0,1/100,1/50) , nrow=no.param, ncol=3, byrow=T) 
@@ -133,7 +133,7 @@ pChain <- matrix(0, nrow=chainLength, ncol = no.param*no.var+1) # Initialising t
 
 
 # Defining the variance-covariance matrix for proposal generation
-vcovProposal = diag( (0.3*(pMaxima-pMinima)) ^2 ) # The higher the coefficient, the lower the acceptance rate with better matching
+vcovProposal = diag( (0.1*(pMaxima-pMinima)) ^2 ) # The higher the coefficient, the lower the acceptance rate with better matching
 
 
 # Find the Prior probability density

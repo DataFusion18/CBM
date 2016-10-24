@@ -6,7 +6,8 @@
 # daily time scale (e.g. 120 days) to estimate Carbon pools (Cstorage,Cleaf,Cstem,Croot)
 
 ##############################
-# Version = v7: First trial with soil manipulation pot experiment data
+# Version = v9: MCMC with soil manipulation pot experiment data for free seedling, 
+# This version considers only daily parameter set for 5 variables ("k","Y","af","as","sf")
 ##############################
 rm(list=ls())
 setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
@@ -15,7 +16,7 @@ setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
 library(mvtnorm) # Creates candidate parameter vector as a multivariate normal jump away from the current candidate
 library(reshape2)
 library(ggplot2)
-chainLength = 1000 # Setting the length of the Markov Chain to be generated
+chainLength = 10000 # Setting the length of the Markov Chain to be generated
 vol = 1000
 
 # Import daily GPP, daily Rd
@@ -68,7 +69,7 @@ legend("topleft", legend = c("Mleaf.data","Mstem.data","Mroot.data"), col=1:3, p
 # Clit = sum(param.final$sf) * (mean(data$Mleaf,na.rm = TRUE))
 # Y = 1 - (resp.sum + (Cpool.sum + Clit)) / C.in
 
-Y = 0.357 # Fixed value of Y
+# Y = 0.357 # Fixed value of Y
 
 # Defining the model to iteratively calculate Cstorage, Cleaf, Cstem, Croot, Sleaf, Sstem, Sroot
 model <- function (GPP,Rd,Mleaf,Mstem,Mroot,Y,k,af,as,sf) {
@@ -111,29 +112,28 @@ model <- function (GPP,Rd,Mleaf,Mstem,Mroot,Y,k,af,as,sf) {
 
 # Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
 no.param = length(GPP.data$Date)
-no.var = 4 # variables are k,af,as,sf,Y
-param.k <- matrix(c(0.1,0.4,0.8) , nrow=no.param, ncol=3, byrow=T) 
-param.af <- matrix(c(0.1,0.45,0.7) , nrow=no.param, ncol=3, byrow=T) 
-param.as <- matrix(c(0.1,0.25,0.5) , nrow=no.param, ncol=3, byrow=T) 
-param.sf <- matrix(c(0,1/100,1/50) , nrow=no.param, ncol=3, byrow=T) 
-# param.Y <- matrix(c(0.2,0.35,0.5) , nrow=no.param, ncol=3, byrow=T) 
-param = data.frame(param.k,param.af,param.as,param.sf)
-names(param) <- c("k_min", "k", "k_max", "af_min", "af", "af_max","as_min", "as", "as_max", 
-                  "sf_min", "sf", "sf_max")
-pMinima <- param[ ,c("k_min", "af_min", "as_min", "sf_min")]
-pMaxima <- param[ ,c("k_max", "af_max", "as_max", "sf_max")]
-pValues <- param[ ,c("k","af","as","sf")] # Starting point of the chain
+no.var = 5 # variables are k,af,as,sf,Y
+param.k <- matrix(c(0,0.45,1) , nrow=no.param, ncol=3, byrow=T) 
+param.Y <- matrix(c(0.2,0.3,0.4) , nrow=no.param, ncol=3, byrow=T) 
+param.af <- matrix(c(0,0.45,0.7) , nrow=no.param, ncol=3, byrow=T) 
+param.as <- matrix(c(0,0.17,0.5) , nrow=no.param, ncol=3, byrow=T) 
+param.sf <- matrix(c(0,1/50,1/25) , nrow=no.param, ncol=3, byrow=T) 
+param = data.frame(param.k,param.Y,param.af,param.as,param.sf)
+names(param) <- c("k_min","k","k_max","Y_min","Y","Y_max","af_min","af","af_max","as_min","as","as_max","sf_min","sf","sf_max")
+pMinima <- param[ ,c("k_min","Y_min","af_min","as_min","sf_min")]
+pMaxima <- param[ ,c("k_max","Y_max","af_max","as_max","sf_max")]
+pValues <- param[ ,c("k","Y","af","as","sf")] # Starting point of the chain
+pChain <- matrix(0, nrow=chainLength, ncol = no.param*no.var+1) # Initialising the chain
 # param = data.frame(param.k,param.af,param.as,param.sf,param.Y)
 # names(param) <- c("k_min", "k", "k_max", "af_min", "af", "af_max","as_min", "as", "as_max", 
 #                   "sf_min", "sf", "sf_max","Y_min", "Y", "Y_max")
 # pMinima <- param[ ,c("k_min", "af_min", "as_min", "sf_min", "Y_min")]
 # pMaxima <- param[ ,c("k_max", "af_max", "as_max", "sf_max", "Y_max")]
 # pValues <- param[ ,c("k","af","as","sf","Y")] # Starting point of the chain
-pChain <- matrix(0, nrow=chainLength, ncol = no.param*no.var+1) # Initialising the chain
 
 
 # Defining the variance-covariance matrix for proposal generation
-vcovProposal = diag( (0.1*(pMaxima-pMinima)) ^2 ) # The higher the coefficient, the lower the acceptance rate with better matching
+vcovProposal = diag( (0.01*(pMaxima-pMinima)) ^2 ) # The higher the coefficient, the lower the acceptance rate with better matching
 
 
 # Find the Prior probability density
@@ -148,8 +148,8 @@ Mleaf = Mstem = Mroot = c()
 Mleaf[1] <- data$Mleaf[1]
 Mstem[1] <- data$Mstem[1]
 Mroot[1] <- data$Mroot[1]
-output = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,Y,pValues$k,pValues$af,pValues$as,pValues$sf)
-# output = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,pValues$Y,pValues$k,pValues$af,pValues$as,pValues$sf)
+# output = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,Y,pValues$k,pValues$af,pValues$as,pValues$sf)
+output = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,pValues$Y,pValues$k,pValues$af,pValues$as,pValues$sf)
 
 
 # Calculating the log likelihood of starting point of the chain
@@ -165,8 +165,8 @@ for (i in 1:length(GPP.data$Date)) {
   {logli[i] = logli[i] - 0.5*((output$Sleaf[i] - data$Sleaf[i])/data$Sleaf_SD[i])^2 - log(data$Sleaf_SD[i])}
 }
 logL0 <- sum(logli) # Log likelihood
-pChain[1,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,logL0) # Assign the first parameter set with log likelihood
-# pChain[1,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,pValues$Y,logL0) # Assign the first parameter set with log likelihood
+# pChain[1,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,logL0) # Assign the first parameter set with log likelihood
+pChain[1,] <- c(pValues$k,pValues$Y,pValues$af,pValues$as,pValues$sf,logL0) # Assign the first parameter set with log likelihood
 
 
 # Calculating the next candidate parameter vector, as a multivariate normal jump away from the current point
@@ -176,8 +176,8 @@ for (i in 1:no.var)
 {candidatepValues[ , i] = rmvnorm(n=1, mean=pValues[ , i],
                                   sigma=diag(vcovProposal[i],no.param)) }
 candidatepValues = data.frame(candidatepValues)
-names(candidatepValues) <- c("k", "af", "as", "sf")
-# names(candidatepValues) <- c("k", "af", "as", "sf","Y")
+# names(candidatepValues) <- c("k", "af", "as", "sf")
+names(candidatepValues) <- c("k","Y","af","as","sf")
 
 
 # Reflected back to generate another candidate value
@@ -190,9 +190,10 @@ candidatepValues = candidatepValues - 2 * reflectionFromMin - 2 * reflectionFrom
 if (all(candidatepValues>pMinima) && all(candidatepValues<pMaxima)){
   uni.dist = vector("list", no.var)
   for (i in 1:no.var)
-  {uni.dist[i] = list(dunif(candidatepValues[ , i], pMinima[ , i], pMaxima[ , i]))}
+  {uni.dist[i] = list(log(dunif(candidatepValues[ , i], pMinima[ , i], pMaxima[ , i])))}
   # uni.dist[1+(i-1)*no.param : i*no.param] = list(dunif(candidatepValues[ , i], pMinima[ , i], pMaxima[ , i]))}
-  Prior1 <- prod(unlist(uni.dist))
+  logPrior1 <- sum(unlist(uni.dist))
+  Prior1 = 1
 } else {Prior1 <- 0}
 
 
@@ -202,10 +203,10 @@ if (Prior1 > 0){
   Mleaf[1] <- data$Mleaf[1]
   Mstem[1] <- data$Mstem[1]
   Mroot[1] <- data$Mroot[1]
-  out.cand = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,Y,
+  # out.cand = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,Y,
+                   # candidatepValues$k,candidatepValues$af,candidatepValues$as,candidatepValues$sf)
+  out.cand = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,candidatepValues$Y,
                    candidatepValues$k,candidatepValues$af,candidatepValues$as,candidatepValues$sf)
-  # out.cand = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,candidatepValues$Y,
-  #                  candidatepValues$k,candidatepValues$af,candidatepValues$as,candidatepValues$sf)
   
   logli <- matrix(0, nrow=length(GPP.data$Date), ncol = 1) # Initialising the logli
   for (i in 1:length(GPP.data$Date)) {
@@ -220,35 +221,35 @@ if (Prior1 > 0){
   }
   logL1 <- sum(logli)
   # Calculating the logarithm of the Metropolis ratio
-  logalpha <- (log(Prior1)+logL1) - (logPrior0+logL0) 
+  logalpha <- (logPrior1+logL1) - (logPrior0+logL0) 
   # Accepting or rejecting the candidate vector
   # browser()
   if ( log(runif(1, min = 0, max =1)) < logalpha ){ 
     pValues <- candidatepValues
-    logPrior0 <- log(Prior1)
+    logPrior0 <- logPrior1
     logL0 <- logL1
   }
 }
-pChain[c,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,logL0)
-# pChain[c,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,pValues$Y,logL0)
+# pChain[c,] <- c(pValues$k,pValues$af,pValues$as,pValues$sf,logL0)
+pChain[c,] <- c(pValues$k,pValues$Y,pValues$af,pValues$as,pValues$sf,logL0)
 }
 
 # Store the final parameter set values
 param.set = colMeans(pChain[ , 1:(no.param*no.var)])
 param.final = data.frame(matrix(ncol = no.var, nrow = no.param))
-names(param.final) <- c("k", "af", "as", "sf")
+names(param.final) <- c("k","Y","af","as","sf")
 param.final$k = param.set[1:no.param]
-param.final$af = param.set[(1+no.param):(2*no.param)]
-param.final$as = param.set[(1+2*no.param):(3*no.param)]
-param.final$sf = param.set[(1+3*no.param):(4*no.param)]
-# param.final$Y = param.set[(1+4*no.param):(5*no.param)]
+param.final$Y = param.set[(1+no.param):(2*no.param)]
+param.final$af = param.set[(1+2*no.param):(3*no.param)]
+param.final$as = param.set[(1+3*no.param):(4*no.param)]
+param.final$sf = param.set[(1+4*no.param):(5*no.param)]
 
 # Calculate final output set from the predicted parameter set
 Mleaf = Mstem = Mroot = c()
 Mleaf[1] <- data$Mleaf[1]
 Mstem[1] <- data$Mstem[1]
 Mroot[1] <- data$Mroot[1]
-output.final = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,Y,
+output.final = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,param.final$Y,
                      param.final$k,param.final$af,param.final$as,param.final$sf)
 # output.final = model(data$GPP,data$Rd,Mleaf,Mstem,Mroot,param.final$Y,
 #                      param.final$k,param.final$af,param.final$as,param.final$sf)
@@ -262,7 +263,7 @@ names(output.final) = c("Cstorage.modelled","Mleaf.modelled","Mstem.modelled","M
 melted.output = melt(output.final, id.vars="Date")
 melted.data = melt(data[ , c("Mleaf","Mstem","Mroot","Sleaf","Date")], id.vars="Date")
 
-# png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Measured_vs_modelled_Cpools.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Measured_vs_modelled_Cpools_daily.png")
 ggplot(melted.data, aes(x = Date, y = value, group = variable, colour=factor(variable))) + 
   geom_point(pch=15) +
   geom_line(data = melted.output, aes(x = Date, y = value, group = variable, colour=factor(variable))) + 
@@ -275,7 +276,7 @@ ggplot(melted.data, aes(x = Date, y = value, group = variable, colour=factor(var
 param.final$Date = data$Date
 param.final$ar = 1 - param.final$af - param.final$as
 melted.param = melt(param.final, id.vars="Date")
-# png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Allocation_fractions_over_time.png")
+# png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Allocation_fractions_over_time_daily.png")
 ggplot() + 
   geom_line(data = melted.param, aes(x = Date, y = value, group = variable, colour=factor(variable))) + 
   xlab("Days") +
@@ -324,18 +325,18 @@ print(t2)
 print(t3)
 
 
-# Validating total C coming in (GPP) vs total C going out (sum of all Cpools, respiration and !!!storage pool!!!)
-C.in = gpp.sum = sum(data$GPP)
-
-resp.sum = sum(data$Rd) * (mean(data$Mleaf,na.rm = TRUE) + mean(data$Mstem,na.rm = TRUE) + mean(data$Mroot,na.rm = TRUE))
-# Cstorage.sum = sum(output.final$Cstorage.modelled)
-Cpool.sum = data$Mleaf[nrow(data)] + data$Mstem[nrow(data)] + data$Mroot[nrow(data)]
-Clit = sum(param.final$sf) * (mean(data$Mleaf,na.rm = TRUE))
-C.out = resp.sum + (Cpool.sum + Clit) / (1-Y)
-Y = 1- (resp.sum + (Cpool.sum + Clit)) / C.in
-# C.out = resp.sum + Cpool.sum + Clit + Cstorage.sum
-cat('C.in = ',C.in)
-cat('C.out = ',C.out)
+# # Validating total C coming in (GPP) vs total C going out (sum of all Cpools, respiration and !!!storage pool!!!)
+# C.in = gpp.sum = sum(data$GPP)
+# 
+# resp.sum = sum(data$Rd) * (mean(data$Mleaf,na.rm = TRUE) + mean(data$Mstem,na.rm = TRUE) + mean(data$Mroot,na.rm = TRUE))
+# # Cstorage.sum = sum(output.final$Cstorage.modelled)
+# Cpool.sum = data$Mleaf[nrow(data)] + data$Mstem[nrow(data)] + data$Mroot[nrow(data)]
+# Clit = sum(param.final$sf) * (mean(data$Mleaf,na.rm = TRUE))
+# C.out = resp.sum + (Cpool.sum + Clit) / (1-Y)
+# # Y = 1- (resp.sum + (Cpool.sum + Clit)) / C.in
+# # C.out = resp.sum + Cpool.sum + Clit + Cstorage.sum
+# cat('C.in = ',C.in)
+# cat('C.out = ',C.out)
 
 # plot(data$Mleaf,col="red")
 # lines(output.final$Mleaf,col="green")

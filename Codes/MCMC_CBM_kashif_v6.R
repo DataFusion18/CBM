@@ -6,7 +6,7 @@
 # daily time scale (e.g. 120 days) to estimate Carbon pools (Cstorage,Cleaf,Cstem,Croot)
 
 ##############################
-# Version = v6: Removing some data points randomly to test the code with gap data
+# Version = v6: MCMC working with a very simple synthetic data set which has random gap data
 ##############################
 rm(list=ls())
 setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Results")

@@ -278,7 +278,7 @@ for(i in 1:length(vols)) {
   for(j in 1:length(unique(height.dia.idn$Date))) {
     height.dia.idn.date = subset(height.dia.idn, Date == unique(height.dia.idn$Date)[j])
     height.dia.idn.date[nrow(height.dia.idn.date)+1, 2:ncol(height.dia.idn.date)] = colMeans(height.dia.idn.date[2:ncol(height.dia.idn.date)], na.rm = TRUE) # R7 = Average of leaf data
-    height.dia.idn.date[nrow(height.dia.idn.date)+1, 2:ncol(height.dia.idn.date)] = apply(height.dia.idn.date[2:ncol(height.dia.idn.date)], 2, sd) # R8 = Standard deviation of leaf counts
+    height.dia.idn.date[nrow(height.dia.idn.date)+1, 2:ncol(height.dia.idn.date)] = apply(height.dia.idn.date[2:ncol(height.dia.idn.date)], 2, sd, na.rm = TRUE) # R8 = Standard deviation of leaf counts
     height.dia.idn.date$Date = height.dia.idn.date$Date[1]
     dimnames(height.dia.idn.date)[[1]] <- c(1:(nrow(height.dia.idn.date)-2), "Mean", "SD")
     if (i == 1 && j == 1) {
@@ -295,7 +295,7 @@ for(i in 1:length(vols)) {
 # Import initial seedling data
 initial.data <- read.csv("seedling_initial.csv")
 initial.data[nrow(initial.data)+1, 2:ncol(initial.data)] = colMeans(initial.data[2:ncol(initial.data)], na.rm = TRUE) # R7 = Average of leaf data
-initial.data[nrow(initial.data)+1, 2:ncol(initial.data)] = apply(initial.data[2:ncol(initial.data)], 2, sd) # R8 = Standard deviation of leaf counts
+initial.data[nrow(initial.data)+1, 2:ncol(initial.data)] = apply(initial.data[2:ncol(initial.data)], 2, sd, na.rm = TRUE) # R8 = Standard deviation of leaf counts
 dimnames(initial.data)[[1]] <- c(1:(nrow(initial.data)-2), "Mean", "SD")
 
 # Import harvested seedling data for all different treatments
@@ -305,7 +305,7 @@ end.data = end.data[with(end.data, order(volume)), ]
 for(i in 1:length(vols)) {
   end.data.idn = subset(end.data,volume==vols[i]) 
   end.data.idn[nrow(end.data.idn)+1, 2:ncol(end.data.idn)] = colMeans(end.data.idn[2:ncol(end.data.idn)], na.rm = TRUE) # R7 = Average of leaf data
-  end.data.idn[nrow(end.data.idn)+1, 2:ncol(end.data.idn)] = apply(end.data.idn[2:ncol(end.data.idn)], 2, sd) # R8 = Standard deviation of leaf counts
+  end.data.idn[nrow(end.data.idn)+1, 2:ncol(end.data.idn)] = apply(end.data.idn[2:ncol(end.data.idn)], 2, sd, na.rm = TRUE) # R8 = Standard deviation of leaf counts
   end.data.idn$volume = end.data.idn$volume[1]
   dimnames(end.data.idn)[[1]] <- c(1:(nrow(end.data.idn)-2), "Mean", "SD")
   if (i == 1) {
@@ -340,12 +340,34 @@ y = height.dia.final$height
 z = height.dia.final$stemmass = eq(x,y)
 
 # Calculate SD for weekly stemmass data
-height.dia.final$stemmass_SD = ((coefficients(fit)[2] * (height.dia.final$dia_SD/height.dia.final$diameter)  + 
-                                     coefficients(fit)[3] * (height.dia.final$height_SD/height.dia.final$height)) * 
-                                  height.dia.final$stemmass) / (coefficients(fit)[2] + coefficients(fit)[3])
+# height.dia.final$stemmass_SD = (((height.dia.final$dia_SD * height.dia.final$dia_SD) + (height.dia.final$height_SD * height.dia.final$height_SD))^0.5 )
+# height.dia.final$stemmass_SD = ((coefficients(fit)[2] * (height.dia.final$dia_SD/height.dia.final$diameter)  +
+#                                      coefficients(fit)[3] * (height.dia.final$height_SD/height.dia.final$height)) *
+#                                   height.dia.final$stemmass) / (coefficients(fit)[2] + coefficients(fit)[3])
+
+# Calculate all seedling stem mass from height and diameter using the linear model and then get the SDs from the 7 replicas
+height.dia$stemmass = eq(height.dia$diameter,height.dia$height)
+for(i in 1:length(vols)) {
+  stemmass.idn = subset(height.dia,volume==vols[i]) 
+  for(j in 1:length(unique(stemmass.idn$Date))) {
+    stemmass.idn.date = subset(stemmass.idn, Date == unique(stemmass.idn$Date)[j])
+    stemmass.idn.date[nrow(stemmass.idn.date)+1, 2:ncol(stemmass.idn.date)] = colMeans(stemmass.idn.date[2:ncol(stemmass.idn.date)], na.rm = TRUE) # R7 = Average of leaf data
+    stemmass.idn.date[nrow(stemmass.idn.date)+1, 2:ncol(stemmass.idn.date)] = apply(stemmass.idn.date[2:ncol(stemmass.idn.date)], 2, sd, na.rm = TRUE) # R8 = Standard deviation of leaf counts
+    stemmass.idn.date$Date = stemmass.idn.date$Date[1]
+    dimnames(stemmass.idn.date)[[1]] <- c(1:(nrow(stemmass.idn.date)-2), "Mean", "SD")
+    if (i == 1 && j == 1) {
+      stemmass.final <- stemmass.idn.date[0,]
+    }
+    stemmass.final[j+(i-1)*length(unique(stemmass.idn$Date)), ] <- stemmass.idn.date["Mean", ]
+    stemmass.final$height_SD[j+(i-1)*length(unique(stemmass.idn$Date))] <- stemmass.idn.date["SD", 3]
+    stemmass.final$dia_SD[j+(i-1)*length(unique(stemmass.idn$Date))] <- stemmass.idn.date["SD", 4]
+    stemmass.final$stemmass_SD[j+(i-1)*length(unique(stemmass.idn$Date))] <- stemmass.idn.date["SD", 5]
+  }
+}
 
 # Save the weekly Cstem data for MCMC CBM
-write.csv(height.dia.final[ , c("Date","volume","stemmass","stemmass_SD")], file = "Cstem_weekly_data.csv", row.names = FALSE)
+write.csv(stemmass.final[ , c("Date","volume","stemmass","stemmass_SD")], file = "Cstem_weekly_data.csv", row.names = FALSE)
+
 
 # Calculate SD for initial and harvest rootmass data
 Croot = data.frame(Date = as.Date(c("2013-01-21","2013-05-21")), rootmass = numeric(2), rootmass_SD = numeric(2))

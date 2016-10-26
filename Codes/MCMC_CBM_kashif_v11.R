@@ -6,9 +6,10 @@
 # daily time scale (e.g. 120 days) to estimate Carbon pools (Cstorage,Cleaf,Cstem,Croot)
 
 ##############################
-# Version = v10: MCMC with soil manipulation pot experiment data for all treatments (including the free seedling), 
+# Version = v11: MCMC with soil manipulation pot experiment data for all treatments (including the free seedling), 
 # This version considers either daily/weekly/monthly/just one parameter set for 5 variables ("k","Y","af","as","sf")
 # So we can set the parameters for various time frames
+# Also calculate the MCMC SDs for all parameters at different time steps
 ##############################
 rm(list=ls())
 setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
@@ -17,7 +18,7 @@ setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")
 library(mvtnorm) # Creates candidate parameter vector as a multivariate normal jump away from the current candidate
 library(reshape2)
 library(ggplot2)
-chainLength = 10500 # Setting the length of the Markov Chain to be generated
+chainLength = 1500 # Setting the length of the Markov Chain to be generated
 vol = 1000
 
 # Import daily GPP, daily Rd
@@ -92,7 +93,7 @@ model <- function (GPP,Rd,j,Mleaf,Mstem,Mroot,Y,k,af,as,sf) {
 
 # Setting lower and upper bounds of the prior parameter pdf, and starting point of the chain
 no.var = 5 # variables are k,Y,af,as,sf
-no.param.par.var = 2 # parameter count per variable based on time frame 
+no.param.par.var = 4 # parameter count per variable based on time frame 
 param.vary = ceiling(nrow(data)/no.param.par.var) # How many days the parameter set remain unchanged (weekly = 7; monthly = 30; just one parameter = nrow(data))
 # param.vary = 30 # How many days the parameter set remain unchanged (weekly = 7; monthly = 30; just one parameter = nrow(data))
 no.param = ceiling(nrow(data)/param.vary) # number of parameter set for the whole duration of experiment (121 days)
@@ -285,12 +286,20 @@ names(melted.param) = c("Date","variable","Parameter","Parameter_SD")
 melted.param$Date = as.Date(melted.param$Date)
 
 # png(file = "/Users/kashifmahmud/WSU/ARC_project/CBM/Results/Allocation_fractions_over_time_monthly.png")
-ggplot() + 
-  geom_line(data = melted.param, aes(x = Date, y = Parameter, group = variable, colour=factor(variable))) + 
-  geom_errorbar(data = melted.param, aes(ymin=Parameter-Parameter_SD, ymax=Parameter+Parameter_SD), width=.1) +
+pd <- position_dodge(3) # move the overlapped errorbars horizontally
+ggplot(data = melted.param, aes(x = Date, y = Parameter, group = variable, colour=factor(variable))) +
+  geom_line(position=pd) +
+  geom_errorbar(data = melted.param, aes(ymin=Parameter-Parameter_SD, ymax=Parameter+Parameter_SD), width=5, position=pd) +
+  geom_point(position=pd, size=1.5, shape=21, stroke=1.25, fill="white") + # 21 is filled circle
   xlab("Days") +
   ylab("Parameters") +
-  ggtitle("Modelled allocation fractions")
+  ggtitle("Modelled allocation fractions") +
+  scale_colour_hue(name="Parameter",    # Legend label, use darker colors
+                   l=40) +                    # Use darker colors, lightness=40
+  scale_y_continuous(breaks=0:10*0.1)  # Set tick every 0.1
+  theme_bw() +
+  theme(legend.justification=c(1,1),
+        legend.position=c(1.1,1.1)) # Position legend in bottom right
 # dev.off()
 
 # Acceptance rate of the chain
@@ -374,7 +383,15 @@ plot(pChain[,1+5*no.param],col="magenta",main="Log-likelihood at Day 1",xlab="It
 
 
 # Display the final mean parameter values
-param.mean = colMeans(param.final[ , c(1:5,7)])
-# param.SD = apply(lc.idn[1:ncol(lc.idn)], 2, sd, na.rm = TRUE) # R9 = Standard deviation of leaf counts
+colMeans(param.final[ , c(1:6)])
+
+# Calcualte AIC and BIC to find the most accurate model for best balance between model fit and complexity
+k = 2 # k = 2 for the usual AIC
+npar = no.param*no.var # npar = total number of parameters in the fitted model
+aic = -2*sum(pChain[,ncol(pChain)]) + k*npar
+
+n = sum(!is.na(data$Sleaf)) + sum(!is.na(data$Mleaf)) + sum(!is.na(data$Mstem)) + sum(!is.na(data$Mroot))
+k = log(n) # n being the number of observations for the so-called BIC
+bic = -2*sum(pChain[,ncol(pChain)]) + k*npar
 
 

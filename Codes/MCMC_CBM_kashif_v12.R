@@ -9,7 +9,8 @@
 # Version = v12: MCMC with soil manipulation pot experiment data for all treatments (including the free seedling), 
 # This version considers either daily/weekly/monthly/just one parameter set for 5 variables ("k","Y","af","as","sf")
 # So we can set the parameters for various time frames
-# Also calculate the MCMC SDs for all parameters at different time steps, the LogLi, AIC, BIC (measures for best model selection)
+# Also calculate the MCMC SDs for all parameters with different time frames, and also the LogLi, AIC, BIC (measures 
+# for best model selection) to select the best parameter set
 ##############################
 rm(list=ls())
 setwd("/Users/kashifmahmud/WSU/ARC_project/CBM/Data_files")

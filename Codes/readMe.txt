@@ -20,3 +20,5 @@ The folder "Codes" includes several R scripts to process and run MCMC for CBM:
   
 6. The latest version “MCMC_CBM_kashif_v12.R” calculates the MCMC SDs for all parameter set having different time frames, and also the LogLi, AIC, BIC (measures for best model selection) to choose the best parameter set.
 
+7. The final version “MCMC_CBM_kashif_v15.R” does the MCMC for all treatments considering all possibilities and saves the figures/tables in Github/results folder.
+

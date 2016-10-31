@@ -56,13 +56,16 @@ model <- function (GPP,Rd,j,Mleaf,Mstem,Mroot,Y,k,af,as,sf) {
 library(mvtnorm) # Creates candidate parameter vector as a multivariate normal jump away from the current candidate
 library(reshape2)
 library(ggplot2)
-chainLength = 1500 # Setting the length of the Markov Chain to be generated
+chainLength = 10500 # Setting the length of the Markov Chain to be generated
 no.var = 5 # variables to be modelled are: k,Y,af,as,sf
-vol = c(15,35) # test run
-no.param.par.var = c(1,3) # test run
+
+# Assign pot volumes and number of parameters per varible in temporal scale
+vol = c(15,35,1000) # test run
+no.param.par.var = c(1,3,9) # test run
 # GPP.data.raw = read.csv("GPP.csv") # Units gC d-1
 # vol = unique(GPP.data.raw$volume)[order(unique(GPP.data.raw$volume))]
 # no.param.par.var = c(1,2,3,4,5,6,9) # temporal parameter count per variable
+
 param.mean = data.frame(matrix(ncol = no.var+1, nrow = length(no.param.par.var)*length(vol)))
 names(param.mean) = c("k","Y","af","as","ar","sf")
 aic.bic = data.frame(matrix(ncol = 4, nrow = length(no.param.par.var)*length(vol)))
@@ -325,12 +328,12 @@ for (z in 1:length(no.param.par.var)) {
     #                          "\nMean ar = ", round(mean(param.final[,7]), 3), "\nMean sf = ",round(mean(param.final[,5]), 3), "\nChain length = ", chainLength))
     # p1
     p1 = ggplot(melted.error, aes(x=Date, y=parameter, colour=variable, group=variable)) + 
-      geom_errorbar(aes(ymin=parameter-value, ymax=parameter+value,colour=variable, group=variable), width=5) +
+      geom_errorbar(aes(ymin=parameter-value, ymax=parameter+value,colour=variable, linetype=variable), width=7) +
       geom_line(data = melted.output, aes(x = Date, y = value, group = variable, colour=variable)) + 
       geom_point(shape = 1, size = 1, stroke = 1.25) +
       ylab("Plant Carbon pool (gC)") +
       ggtitle("Measured (circles) vs Modelled (lines) Plant Carbon pools") +
-      labs(colour="C pools") +
+      labs(linetype="Data uncertainty",colour="C pools") +
       theme(legend.title = element_text(colour="chocolate", size=10, face="bold")) +
       annotate("text", x = melted.output$Date[20], y = max(output$Mstem,na.rm = TRUE), size = 3, 
                           label = paste("Mean k = ", round(mean(param.final[,1]), 3), "\nMean Y = ", round(mean(param.final[,2]), 3),
